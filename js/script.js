@@ -543,5 +543,74 @@
 
   /* --- Boot --- */
   runBoot();
+   // === JARVIS VOICE INPUT ===
+const SpeechRecognition =
+window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+const recognition = new SpeechRecognition();
+
+recognition.continuous = false;
+recognition.interimResults = false;
+recognition.lang = 'en-US';
+
+const listenBtn = document.createElement('button');
+listenBtn.textContent = 'LISTEN';
+listenBtn.id = 'jarvis-listen-btn';
+
+listenBtn.style.position = 'fixed';
+listenBtn.style.bottom = '25px';
+listenBtn.style.left = '50%';
+listenBtn.style.transform = 'translateX(-50%)';
+listenBtn.style.zIndex = '9999';
+listenBtn.style.padding = '12px 28px';
+listenBtn.style.fontSize = '16px';
+listenBtn.style.cursor = 'pointer';
+
+document.body.appendChild(listenBtn);
+
+listenBtn.addEventListener('click', () => {
+listenBtn.textContent = 'LISTENING...';
+
+try {
+recognition.start();
+} catch (error) {
+console.log('Recognition already running.');
+}
+});
+
+recognition.onresult = (event) => {
+const command = event.results[0][0].transcript;
+
+listenBtn.textContent = 'LISTEN';
+
+if (typeof sysMsg !== 'undefined' && sysMsg) {
+sysMsg.textContent = `You said: ${command}`;
+}
+
+if ('speechSynthesis' in window) {
+speechSynthesis.cancel();
+
+const response = new SpeechSynthesisUtterance(
+`I heard you say ${command}`
+);
+
+response.lang = 'en-US';
+speechSynthesis.speak(response);
+}
+};
+
+recognition.onerror = (event) => {
+console.log('JARVIS microphone error:', event.error);
+listenBtn.textContent = 'LISTEN';
+};
+
+recognition.onend = () => {
+listenBtn.textContent = 'LISTEN';
+};
+
+} else {
+console.log('Speech recognition is not supported in this browser.');
+}
 
 })();
