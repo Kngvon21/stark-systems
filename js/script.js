@@ -543,74 +543,212 @@
 
   /* --- Boot --- */
   runBoot();
-   // === JARVIS VOICE INPUT ===
-const SpeechRecognition =
-window.SpeechRecognition || window.webkitSpeechRecognition;
+   /* ============================================
+     JARVIS VOICE INPUT
+     ============================================ */
 
-if (SpeechRecognition) {
-const recognition = new SpeechRecognition();
+  const micButton = document.getElementById('micButton');
 
-recognition.continuous = false;
-recognition.interimResults = false;
-recognition.lang = 'en-US';
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
 
-const listenBtn = document.createElement('button');
-listenBtn.textContent = 'LISTEN';
-listenBtn.id = 'jarvis-listen-btn';
+  let recognition = null;
+  let listening = false;
 
-listenBtn.style.position = 'fixed';
-listenBtn.style.bottom = '25px';
-listenBtn.style.left = '50%';
-listenBtn.style.transform = 'translateX(-50%)';
-listenBtn.style.zIndex = '9999';
-listenBtn.style.padding = '12px 28px';
-listenBtn.style.fontSize = '16px';
-listenBtn.style.cursor = 'pointer';
+  if (SpeechRecognition && micButton) {
 
-document.body.appendChild(listenBtn);
+    recognition = new SpeechRecognition();
 
-listenBtn.addEventListener('click', () => {
-listenBtn.textContent = 'LISTENING...';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
 
-try {
-recognition.start();
-} catch (error) {
-console.log('Recognition already running.');
-}
-});
+    /* --- Microphone Button --- */
+    micButton.addEventListener('click', () => {
 
-recognition.onresult = (event) => {
-const command = event.results[0][0].transcript;
+      if (listening) {
+        recognition.stop();
+        return;
+      }
 
-listenBtn.textContent = 'LISTEN';
+      try {
+        recognition.start();
+      } catch (error) {
+        console.log('JARVIS recognition error:', error);
+      }
+    });
 
-if (typeof sysMsg !== 'undefined' && sysMsg) {
-sysMsg.textContent = `You said: ${command}`;
-}
+    /* --- Microphone Started --- */
+    recognition.onstart = () => {
 
-if ('speechSynthesis' in window) {
-speechSynthesis.cancel();
+      listening = true;
 
-const response = new SpeechSynthesisUtterance(
-`I heard you say ${command}`
-);
+      micButton.classList.add('listening');
 
-response.lang = 'en-US';
-speechSynthesis.speak(response);
-}
-};
+      const label = micButton.querySelector('.mic-label');
 
-recognition.onerror = (event) => {
-console.log('JARVIS microphone error:', event.error);
-listenBtn.textContent = 'LISTEN';
-};
+      if (label) {
+        label.textContent = 'LISTENING';
+      }
 
-recognition.onend = () => {
-listenBtn.textContent = 'LISTEN';
-};
+      micButton.setAttribute(
+        'aria-label',
+        'Stop listening'
+      );
 
-} else {
-console.log('Speech recognition is not supported in this browser.');
-}
+      sysMsg.textContent = '> JARVIS LISTENING...';
+      sysMsg.style.opacity = '1';
 
-})();
+      reactorContainer.classList.add('engaged');
+    };
+
+    /* --- Speech Received --- */
+    recognition.onresult = (event) => {
+
+      const command =
+        event.results[0][0].transcript.trim();
+
+      console.log('JARVIS heard:', command);
+
+      sysMsg.textContent =
+        '> COMMAND: ' + command;
+
+      sysMsg.style.opacity = '1';
+
+      speakJarvisResponse(command);
+    };
+
+    /* --- Microphone Error --- */
+    recognition.onerror = (event) => {
+
+      console.log(
+        'JARVIS microphone error:',
+        event.error
+      );
+
+      listening = false;
+
+      micButton.classList.remove('listening');
+
+      const label = micButton.querySelector('.mic-label');
+
+      if (label) {
+        label.textContent = 'VOICE';
+      }
+
+      micButton.setAttribute(
+        'aria-label',
+        'Activate microphone'
+      );
+
+      if (event.error === 'not-allowed') {
+
+        sysMsg.textContent =
+          '> MICROPHONE ACCESS DENIED';
+
+      } else if (event.error === 'no-speech') {
+
+        sysMsg.textContent =
+          '> NO SPEECH DETECTED';
+
+      } else {
+
+        sysMsg.textContent =
+          '> MICROPHONE ERROR: ' + event.error;
+      }
+
+      sysMsg.style.opacity = '1';
+    };
+
+    /* --- Recognition Finished --- */
+    recognition.onend = () => {
+
+      listening = false;
+
+      micButton.classList.remove('listening');
+
+      const label = micButton.querySelector('.mic-label');
+
+      if (label) {
+        label.textContent = 'VOICE';
+      }
+
+      micButton.setAttribute(
+        'aria-label',
+        'Activate microphone'
+      );
+
+      if (!engaged) {
+        reactorContainer.classList.remove('engaged');
+      }
+    };
+
+  } else if (micButton) {
+
+    /* Browser doesn't support speech recognition */
+
+    micButton.classList.add('unsupported');
+
+    micButton.disabled = true;
+
+    const label = micButton.querySelector('.mic-label');
+
+    if (label) {
+      label.textContent = 'UNAVAILABLE';
+    }
+
+    sysMsg.textContent =
+      '> VOICE RECOGNITION NOT SUPPORTED';
+
+    console.log(
+      'JARVIS: SpeechRecognition is not supported in this browser.'
+    );
+  }
+
+
+  /* ============================================
+     JARVIS RESPONSE
+     ============================================ */
+
+  function speakJarvisResponse(command) {
+
+    if (!('speechSynthesis' in window)) {
+      return;
+    }
+
+    const response =
+      new SpeechSynthesisUtterance(
+        `I heard you say ${command}`
+      );
+
+    response.rate = 0.9;
+    response.pitch = 0.8;
+    response.volume = 0.85;
+
+    const voices = speechSynthesis.getVoices();
+
+    const preferred =
+      voices.find(v =>
+        /google uk english male/i.test(v.name)
+      ) ||
+      voices.find(v =>
+        /google.*english/i.test(v.name) &&
+        /male/i.test(v.name)
+      ) ||
+      voices.find(v =>
+        v.lang.startsWith('en-GB')
+      ) ||
+      voices.find(v =>
+        v.lang.startsWith('en')
+      );
+
+    if (preferred) {
+      response.voice = preferred;
+    }
+
+    speechSynthesis.cancel();
+
+    speechSynthesis.speak(response);
+  }
